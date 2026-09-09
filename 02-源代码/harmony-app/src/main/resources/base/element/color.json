@@ -1,0 +1,9 @@
+{
+  "color": [
+    { "name": "start_window_background", "value": "#F7F8FC" },
+    { "name": "ibest_primary_color", "value": "#3D5AFE" },
+    { "name": "ibest_success_color", "value": "#22A06B" },
+    { "name": "ibest_warning_color", "value": "#F5A623" },
+    { "name": "ibest_danger_color", "value": "#E5484D" }
+  ]
+}

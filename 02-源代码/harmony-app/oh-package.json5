@@ -1,0 +1,9 @@
+{
+  "modelVersion": "5.0.0",
+  "description": "SmartLearn HarmonyOS NEXT demo.",
+  "dependencies": {
+    "@ibestservices/ibest-ui-v2": "^1.1.3"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
+}

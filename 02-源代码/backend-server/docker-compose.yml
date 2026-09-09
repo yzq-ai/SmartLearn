@@ -1,0 +1,125 @@
+name: smartlearn
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: smartlearn-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-smart_learn}
+      MYSQL_USER: ${MYSQL_USER:-smartlearn}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-smartlearn_dev}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_dev_password}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartlearn-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    profiles: ["app"]
+    build:
+      context: ./smartlearn-backend
+    container_name: smartlearn-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-smartlearn}:${MYSQL_PASSWORD:-smartlearn_dev}@mysql:3306/${MYSQL_DATABASE:-smart_learn}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_BACKEND_URL: redis://redis:6379/2
+      CELERY_ALWAYS_EAGER: "false"
+      LOCAL_STORAGE_DIR: /data/storage
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - storage_data:/data/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ./smartlearn-backend
+    container_name: smartlearn-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-smartlearn}:${MYSQL_PASSWORD:-smartlearn_dev}@mysql:3306/${MYSQL_DATABASE:-smart_learn}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_BACKEND_URL: redis://redis:6379/2
+      CELERY_ALWAYS_EAGER: "false"
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "-l", "info", "-c", "4"]
+
+  beat:
+    profiles: ["app"]
+    build:
+      context: ./smartlearn-backend
+    container_name: smartlearn-beat
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-smartlearn}:${MYSQL_PASSWORD:-smartlearn_dev}@mysql:3306/${MYSQL_DATABASE:-smart_learn}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_BACKEND_URL: redis://redis:6379/2
+      CELERY_ALWAYS_EAGER: "false"
+      TZ: Asia/Shanghai
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "-l", "info"]
+
+  nginx:
+    profiles: ["app"]
+    image: nginx:1.24
+    container_name: smartlearn-nginx
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  redis_data:
+  storage_data:

@@ -1,0 +1,8 @@
+{
+  "name": "smartlearn-harmony",
+  "version": "1.0.0",
+  "ohos": { "org": "smartlearn", "buildTool": "hvigor", "directoryLevel": "project" },
+  "description": "鸿蒙智学业 HarmonyOS NEXT ArkTS 演示工程",
+  "license": "UNLICENSED",
+  "dependencies": {}
+}
